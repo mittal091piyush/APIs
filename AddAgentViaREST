@@ -1,0 +1,179 @@
+@RestResource(urlMapping='/V2.0/AddAgentViaREST/*')
+    global with sharing class AddAgentViaREST {                 
+
+    @HttpPost   
+      global static void AddAgentValue() {
+        List<responseJSONNew> listCommJsonResponse = new List<responseJSONNew>(); 
+        
+        try
+        {
+          RestRequest req = RestContext.request;
+          RestResponse res = RestContext.response;
+          RestContext.response.addHeader('Content-Type', 'application/json');
+          String postBody = (req.requestBody != null)?req.requestBody.toString():'';
+          map<string, AgentData> caseCommentMap = new map<string, AgentData>();
+          DataJSON recordNew = (DataJSON)JSON.deserialize(postBody,DataJSON.class);
+          
+          
+          List<FSE_Agent__c> agentList = new List<FSE_Agent__c>();
+          List<KYC_Agency__c>ListAgencyName = new List<KYC_Agency__c>();
+          
+          
+          set<Id> AgencyIds = new set<id>();
+          Integer i = 0;
+          
+          for(KYC_Agency__c AT: [Select ID, Demo_Agency__c,Name from KYC_Agency__c where Demo_Agency__c = true]){
+            AgencyIds.add(AT.ID);
+            ListAgencyName.add(AT);
+          }
+          Integer noOfAgencies = AgencyIds.size();
+          Integer y = 0;
+         
+         if(recordNew != null && !recordNew.Agents.isEmpty()){
+            for(AgentData cd: recordNew.Agents ){
+              if(cd.AgentCustID != '' && cd.AgentCustID != null ) {
+                  if(cd.PaytmWalletPhoneNo != '' && cd.PaytmWalletPhoneNo != null) {
+                    FSE_Agent__c agent = New FSE_Agent__c();
+                    agent.Agent_Cust_ID__c = cd.AgentCustID;
+                    agent.Paytm_Wallet_Phone_No__c=cd.PaytmWalletPhoneNo ;
+                    agent.TnC_Version__c = cd.tncVersion;  
+                    agent.TnC_Version_Acceptance_Timestamp__c = cd.tncAcceptedTimestamp;
+                    agent.Agent_Name__c = cd.AgentName;
+                    //agent.Agent_Subtype__c = 'DIY Agent';
+                    agent.T_C_Name__c = cd.tncName;
+                    agent.Agent_ID__c = 'DIY'+cd.AgentCustID ;
+                    agent.RecordTypeId = Schema.SObjectType.FSE_Agent__c.getRecordTypeInfosByName().get('DIY Agent').getRecordTypeId(); 
+                    agent.isACLResponseReceived__c = true;
+                    
+                    if(String.isNotBlank(cd.AgentType))
+                        agent.Agent_Type__c = cd.AgentType;
+                    else
+                        agent.Agent_Type__c = 'DIY';
+                        
+                    if(cd.AgentSubType != null && cd.AgentSubType != '')
+                        agent.Agent_Subtype__c = cd.AgentSubType;
+                    else
+                        agent.Agent_Subtype__c = 'DIY'; 
+                        
+                    if(cd.GGappEkycEnabled != null && cd.GGappEkycEnabled != '')
+                        agent.GGapp_Ekyc_Enabled__c = cd.GGappEkycEnabled;
+                    else
+                        agent.GGapp_Ekyc_Enabled__c = 'No';
+    
+                    if(cd.Status != null && cd.Status != '')
+                        agent.Status__c = cd.Status ;
+                    else
+                        agent.Status__c = 'Active';
+        
+                    if(cd.AgentAcessPermission != null && cd.AgentAcessPermission != '')
+                      agent.Agent_Access_Permission__c = cd.AgentAcessPermission;
+                    else
+                        agent.Agent_Access_Permission__c = 'BF_K';
+                    
+                    if(cd.BankAgentType != null && cd.BankAgentType != '')
+                        agent.Bank_Agent_Type__c = cd.BankAgentType;
+                    else
+                        agent.Bank_Agent_Type__c = 'BF';
+        
+                    if(AgencyIds.size()>0){
+                      y = math.mod(y,noOfAgencies);
+                      
+                      agent.KYC_Agency__c = ListAgencyName[y].ID;
+                      y++;              
+                     
+                     agentList.add(agent);
+                    }
+                  }
+                  else {
+                    listCommJsonResponse.add(new responseJSONNew(''+cd.PaytmWalletPhoneNo+'','500.1','Mobile No is Missing. Mobile No and Cutomer Id is Mandatory Field(*) !!', 'FAILURE', null, null ));  
+                  }
+                }
+                else {
+                  listCommJsonResponse.add(new responseJSONNew(''+cd.PaytmWalletPhoneNo+'','500.1','Customer ID  is Missing. Mobile No and Cutomer Id is Mandatory Field(*) !!', 'FAILURE', null, null ));
+              }
+            }
+            if(AgencyIds.size()==0){
+                    listCommJsonResponse.add(new responseJSONNew('','500.1','No Agency found !!', 'FAILURE', null, null));  
+            }
+
+            if(agentList.Size()>0) {
+             Database.SaveResult[] srList;
+                srList = Database.insert(agentList, false);
+                Set<Id> recordIdSet = new Set<Id>();
+              for (Database.SaveResult sr : srList) {
+                if (sr.isSuccess()) {
+                  recordIdSet.add(sr.id);                  
+                  i++;
+                }
+                else {
+                  // Operation failed, so get all errors                
+                  for(Database.Error err : sr.getErrors()) {
+                      listCommJsonResponse.add(new responseJSONNew(''+agentList[i].Paytm_Wallet_Phone_No__c+'','500.2', ''+err.getMessage()+ '', 'FAILURE', null, null ));
+                      i++;
+                  }
+                } 
+              }
+              if( !recordIdSet.isEmpty() ) {
+                for( FSE_Agent__c agent : [select id, Paytm_Wallet_Phone_No__c, Serialized_Agent_ID_Auto__c, Agent_ID__c from FSE_Agent__c  where id in:recordIdSet] ) {
+                  // Operation was successful, so get the ID of the record that was processed
+                  listCommJsonResponse.add(new responseJSONNew(''+agent.Paytm_Wallet_Phone_No__c+'','200.1','Agent Inserted :', 'SUCCESS', agent.Agent_ID__c, agent.Serialized_Agent_ID_Auto__c ));    
+                }
+              } 
+            }
+          }
+        }
+        catch(Exception ex){
+          listCommJsonResponse.add(new responseJSONNew('System Exception ','500.1', 'Exception Message '+ex.GetLineNumber()+'', +ex.getMessage(), null, null));
+        }
+        
+        String jsonResponse;
+        jsonResponse = JSON.serialize(listCommJsonResponse);
+        RestContext.response.responseBody = Blob.valueOf(jsonResponse);
+        API_Tracker_Counter.increaseAPICounter('AddAgentViaREST');
+      }  
+      
+      
+      global class DataJSON {   
+        public List<AgentData> Agents;        
+      }
+      
+      global class AgentData {
+        public String AgentCustID ;
+        public String PaytmWalletPhoneNo;
+        public String Status;
+        public String AgentName;  
+        public String AgentAcessPermission;  
+        public String AgentID;
+        public String BankAgentType;
+        public String KYCAgency;
+        public String AgentSubType;
+        public String AgentType;
+        public String GGappEkycEnabled;
+        public String tncVersion;
+        public String tncAcceptedTimestamp;
+        public String tncName;
+      }
+    }
+
+    /*
+    Simple JSON
+        {
+          "Agents" : [
+              {
+              "AgentCustID" : "1234533544"",
+              "PaytmWalletPhoneNo": "9643953563",
+              "Status": "Active",
+              "AgentName":"Testing1",
+              "AgentAcessPermissionRule":"Individual",
+              
+              },
+              {
+              "AgentCustID" : "1234543544"",
+              "PaytmWalletPhoneNo": "9643953564",
+              "Status": "Active",
+              "AgentName":"Testing2",
+              "AgentAcessPermissionRule":"Merchant",
+              }
+            ]
+        }
+    */
