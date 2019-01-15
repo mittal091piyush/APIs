@@ -1,0 +1,73 @@
+@isTest
+public class BCTicketHistoryRestClass_Tracker{
+    
+    public static testmethod void BCTicketHistoryRestClassTest(){
+    
+        initializeSettings();
+        
+        Case c = new Case();
+        c.recordtypeId = Schema.SObjectType.Case.getRecordTypeInfosByName().get('BC Remittance Helpdesk').getRecordTypeId();
+        c.Subject = 'Change Bank Account Details';
+        c.status = 'Open';
+        c.Origin = 'Web';
+        c.Case_type__c  = 'Operational_PHD';
+        c.Production_MID__c  = 'TestMID';
+        c.Issue_Types__c = 'Payout/Settlement Issues';
+        c.Issue_Sub_Types__c = 'I have not received my Payout';
+        c.Customer_Id__c  = 'cid123';
+        insert c;
+        
+        RestRequest req = new RestRequest(); 
+        RestResponse res = new RestResponse();
+        
+        req.requestURI = '<a target="_blank" href="https://XXXX.salesforce.com/services/apexrest/v.1/leads/" rel="nofollow">https://XXXX.salesforce.com/services/apexrest/v.1/leads/</a>';
+        req.httpMethod = 'POST';
+        
+        RestContext.request = req;
+        RestContext.response = res;
+        
+        RestContext.request.addParameter('limit','2');
+        RestContext.request.addParameter('offset','0');
+        
+        BCTicketHistoryRestClass.doGet();   // Without MID
+        
+        RestContext.request.addHeader('cid','TestMIDInvalid');
+        BCTicketHistoryRestClass.doGet(); // With Invalid MID 
+        
+        RestContext.request.addHeader('cid','cid123');
+        BCTicketHistoryRestClass.doGet(); // With Valid MID
+        
+        RestContext.request.addParameter('offset','10');
+        RestContext.request.addParameter('limit','500');
+        BCTicketHistoryRestClass.doGet(); // With invalid offset * limit
+        
+        RestContext.request.addParameter('offset','0');
+        RestContext.request.addParameter('limit','2000');
+        BCTicketHistoryRestClass.doGet(); // With invalid limit
+        
+        
+    }//[END ]
+    
+    public static void initializeSettings(){
+         MHD_Queue__c custSetting = new MHD_Queue__c();
+         custSetting.Name = 'Queue';
+         //custSetting.Queue_ID__c = '00Gp0000000QrNZ';
+         custSetting.Queue_Id__c = [Select Id, Name From Group Where Type = 'Queue' and name = 'PHD_admin' limit 1].id;
+         custSetting.Queue_Name__c = 'PHD_admin';
+         insert custSetting;
+         
+         custSetting = new MHD_Queue__c();
+         custSetting.Name = 'PHD';
+         //custSetting.Queue_ID__c = '00Gp0000000QrNZ';
+         custSetting.Queue_Id__c = [Select Id, Name From Group Where Type = 'Queue' and name = 'PHD_admin' limit 1].id;
+         custSetting.Queue_Name__c = 'PHD_admin';
+         insert custSetting;
+         
+        Ptm_MakeTriggerActiveInactive__c act = new Ptm_MakeTriggerActiveInactive__c();
+        act.Name = 'IsActiveTrigger';
+        act.Ptm_TrrigerOnLead__c = true;  
+        insert act; 
+  
+    }
+    
+}
