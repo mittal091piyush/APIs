@@ -1,0 +1,68 @@
+@RestResource(urlMapping='/Merchant/BCTicketHistory/*') // 'Account' can be changed to any name
+global with sharing class BCTicketHistoryRestClass{
+
+    @HttpGet
+    global static void doGet(){
+    
+        RestRequest req = RestContext.request;
+        RestResponse res = RestContext.response;
+        
+        String cid = req.headers.get('cid');
+        String Status = req.headers.get('status');
+        String limitVal= (!String.isBlank(req.params.get('limit')))?req.params.get('limit'):'0';
+        String offsetVal = (!String.isBlank(req.params.get('offset')))?req.params.get('offset'):'0';
+        
+        res.addHeader('Content-Type','application/json'); // show response in JSON format
+        
+        if(!String.ISBLANK(cid)){
+            
+            Integer limitCount = Integer.ValueOf(limitVal);
+            Integer offsetCount = Integer.valueOf(offsetVal);
+            
+            if(limitCount < 0 || limitCount > 1000 ){
+               
+                res.statuscode = 400;
+                res.responseBody = Blob.valueof('{"statusCode":"400", "errorMsg": "Invalid Limit. Acceptable Values are between 1 to 1000."}');
+            
+            }
+            
+            else if( offsetCount * limitCount > 2000){
+                res.statuscode = 400;
+                res.responseBody = Blob.valueof('{"statusCode":"400", "errorMsg": "Invalid Offset. Product of limit and offset should not be more than 2000."}');
+            }
+            
+            else{
+                string condition='';// = String.isBlank(did)?'': ' AND UID__c =: uid '; // change made by Piyush Mittal
+                condition =+ String.isBlank(status)?'': ' AND status =: Status '; // change made by Piyush Mittal
+                String query = 'Select id,Issue_Types__c,Issue_Sub_Types__c,Issue_Resolution_Summary__c,CreatedDate,CaseNumber,Status,Formatted_Created_Date__c from Case WHERE Origin = \'Web\' AND Customer_Id__c =: cid '+condition+' ORDER BY CaseNumber DESC LIMIT : limitCount OFFSET : offsetCount';
+                List<Case> caseList  = Database.query(query);         
+                if(caseList != null && caseList.size() >0){
+                    
+                    for(Case c : caseList)
+                        c.Formatted_Created_Date__c = c.CreatedDate.format();
+                        
+                    res.statusCode = 200;
+                    Integer nextOffset = offSetCount + limitCount;
+                    
+                    res.responseBody = Blob.valueof('{"statusCode":"200", "errorMsg": "","nextOffset":"'+nextOffset +'", "caseList":'+JSON.serialize(caseList)+'}');
+                }
+                else{
+                    res.statuscode = 404;
+                    res.responseBody = Blob.valueof('{"statusCode":"404", "errorMsg": "No ticket present for the given cid and offset"}');
+                }
+            }//[END OF ELSE]
+            
+        }else{
+            res.statuscode = 400; //bad request
+            res.responseBody = Blob.valueof('{"statusCode":"400", "errorMsg": "No cid present in request"}');
+        }
+            // ....API COUNTER...
+        API_Tracker_Counter.increaseAPICounter('BCTicketHistoryRestClass');   
+        
+    }//[END OF GET REQUEST]
+    
+    public class Info{
+        public integer nextOffset;
+        public List<Case> caseList;
+    }
+}
