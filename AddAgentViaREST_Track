@@ -1,0 +1,26 @@
+@isTest
+public class AddAgentViaREST_Tracker
+{
+static testmethod void test()
+{
+KYC_Agency__c Ka = new KYC_Agency__c();
+Ka.Name = 'Testing123';
+Ka.Demo_Agency__c = true;
+insert Ka;
+
+
+String s = '{"Agents":[{"AgentCustID":"1234533544","PaytmWalletPhoneNo":"9643953563","Status": "Active","AgentName":"Testing1","AgentAcessPermissionRule":"Individual"},{"AgentCustID":"","PaytmWalletPhoneNo":"9643953563","Status": "Active","AgentName":"Testing1","AgentAcessPermissionRule":"Individual"},{"AgentCustID":"1234533544","PaytmWalletPhoneNo":"","Status": "Active","AgentName":"Testing1","AgentAcessPermissionRule":"Individual"},{"AgentCustID":"1234533544","PaytmWalletPhoneNo":"9643953563","Status": "Active","AgentName":"Testing1","AgentAcessPermissionRule":"Individual"}]}';
+RestRequest req = new RestRequest();
+RestResponse res = new RestResponse();
+
+req.requestURI = 'https://cs6.salesforce.com/services/apexrest/V2.0/AddAgentViaREST/';  //Request URL
+req.requestBody = Blob.valueof(s);
+req.httpMethod = 'POST';
+RestContext.request = req;
+RestContext.response= res;
+
+AddAgentViaREST.AddAgentValue();
+}
+
+    
+}
