@@ -1,0 +1,91 @@
+/** Custom rest api class to accomadate the additional fields **/
+@RestResource(urlMapping='/CreateLead/*')
+global with sharing class Lead_WebToLeadService {
+    
+    @HttpPost
+    global static void doPost() {
+        response responseWrapper = new response();
+        try{
+            
+            Map<String, String> fieldsMap = getLimitedFields();
+            RestRequest request = RestContext.request;
+            String jsonPayload = getPayload(request);
+            
+            Map<String, Object> payloadMap = (Map<String, Object>) JSON.deserializeUntyped(jsonPayload);
+            
+            Lead leadObj = new Lead();
+            
+            system.debug(payloadMap.size());
+            
+            for(String key:payloadMap.keySet()) {
+                if(fieldsMap.containsKey(key)) {
+                    leadObj.put(fieldsMap.get(key), payloadMap.get(key));
+                }
+            }
+            
+            if(payloadMap.containsKey('Company') == false) {
+                leadObj.put('Company', '[not provided]');
+            }
+            
+            leadObj.put('WebtoLead__c', true);
+            
+            if(String.isBlank(leadObj.LastName) ||
+               String.isBlank(leadObj.MobilePhone) ||
+               String.isBlank(leadObj.Country_Code__c) ||
+               String.isBlank(leadObj.Email) ||
+               String.isBlank(leadObj.Lead_Channel__c) ||
+               String.isBlank(leadObj.Lead_Source__c) ||
+               String.isBlank(leadObj.Sub_Source__c))
+            {
+                responseWrapper.isSuccess = false;
+                responseWrapper.message = 'REQUIRED_FIELD_MISSING: Required fields are missing';
+            } else {
+                
+                Database.SaveResult result = Database.insert(leadObj, false);
+                
+                if (result.isSuccess()) {
+                    responseWrapper.isSuccess = true;
+                    responseWrapper.message = 'Lead record created in Salesforce';
+                } else {
+                    String message = '';
+                    responseWrapper.isSuccess = false;
+                    for(Database.Error err : result.getErrors()) {
+                        message = message +', '+ err.getStatusCode() + ': ' + err.getMessage();
+                    }
+                    
+                    message = message.removeStart(',');
+                    
+                    responseWrapper.message = message;
+                }
+            }
+        }catch(Exception ex) {
+            responseWrapper.isSuccess = false;
+            responseWrapper.message = ex.getMessage();
+        }
+        
+        RestResponse res = RestContext.response;
+        res.responseBody = Blob.valueOf(JSON.serialize(responseWrapper));
+
+    }
+    
+    static Map<String, String> getLimitedFields() {
+        Map<String, String> fieldsMap = new Map<String, String>();
+        
+        for(WebToLeadAPIMapping__mdt mappingObj:[SELECT Id, Label, Field_API_Name__c FROM WebToLeadAPIMapping__mdt]) {
+            fieldsMap.put(mappingObj.Label, mappingObj.Field_API_Name__c);
+        }
+        
+        return fieldsMap;
+    }
+    
+    static string getPayload(RestRequest request) {
+        String base64 = EncodingUtil.base64Encode(request.requestBody);
+        String decodedText = EncodingUtil.base64Decode(base64).toString();
+        return decodedText;
+    }
+    
+    public class response {
+        public boolean isSuccess { get; set; }
+        public string message { get; set; }
+    }
+}
