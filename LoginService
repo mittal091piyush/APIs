@@ -1,0 +1,32 @@
+/**
+* @author            : Saleem
+* @modifiedon        : March-08-2021
+* @Description       : expose the soap login feature
+**/
+@RestResource(urlMapping = '/dafzaLogin/*')
+global class LoginService {
+   /**
+     * @author            : Saleem
+     * @modifiedon        : March-08-2021
+     * @Description       : accept username and password and returns the user details along with sessionId
+    **/
+    @Httppost
+    global static SFLoginService.LoginSFResponse doLogin(String SFusername, String SFpassword){    
+        SFLoginService.LoginSFResponse response = new SFLoginService.LoginSFResponse();
+        try {
+          response = SFLoginService.sfLogin(SFusername, SFpassword);        
+        }
+        catch(Exception e) {
+            exceptionResponse(e);
+        }
+        return response;
+    } 
+    public static SFLoginService.LoginSFResponse exceptionResponse(Exception e) {
+        SFLoginService.LoginSFResponse response = new SFLoginService.LoginSFResponse();
+        response.success = false;
+        response.message = e.getMessage();
+        response.errorCode = e.getTypeName();
+        response.statusCode = LoginUtils.ERROR_STATUS_CODE;
+        return response;
+    }
+}
