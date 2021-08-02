@@ -1,0 +1,75 @@
+/**
+ * @author            : Raghu M
+ * @Description       : REST Service for E Gate Pass Validation
+ **/
+@RestResource(urlMapping = 
+'/validategatepass/*')
+global class DCCEGatePassStatus{
+  global static final String NO_RECORDS_FOUND = 'Gate Pass Details Not found';
+  global static final String MULTIPLE_RECORDS_FOUND = 'Multiple records found';
+  global static final String VALID_PASS = 'Valid';
+  global static final String EXPIRED_PASS = 'Expired';
+  /**
+   * getGatePassStatus - Get method to get gate pass expiry info
+   */
+  @HttpGet
+  global static ResponseWrapper getGatePassStatus(){
+    RestRequest request = RestContext.request;
+    ResponseWrapper wrapper = new ResponseWrapper();
+    try{
+      String passId = request.requestURI.substring(request.requestURI.lastIndexOf('/')+1);
+      List<Gate_Pass__c> gatePassInfo = new List<Gate_Pass__c>();
+      gatePassInfo = [SELECT Id, Account__r.Name, Building_No__c, Office_No__c, Name, Requestor_Name__c, Issued_Date__c, Expiry_Date__c, Pass_Type__c, Pass_Id__c
+                      FROM Gate_Pass__c
+                      WHERE Pass_Id__c = :passId];
+      if (gatePassInfo.isEmpty()){
+        wrapper.isSuccess = true;
+        wrapper.status = NO_RECORDS_FOUND;
+        return wrapper;
+      }
+      if (gatePassInfo.size() > 1){
+        wrapper.isSuccess = true;
+        wrapper.status = MULTIPLE_RECORDS_FOUND;
+        return wrapper;
+      }
+      if (!gatePassInfo.isEmpty() && (Date.today() >= gatePassInfo[0].Issued_Date__c && Date.today() <= gatePassInfo[0].Expiry_Date__c)){
+        wrapper.isSuccess = true;
+        wrapper.status = VALID_PASS;
+        wrapper.passId = gatePassInfo[0].Pass_Id__c;
+        wrapper.visitorName = gatePassInfo[0].Requestor_Name__c;
+        wrapper.buildingNumber = gatePassInfo[0].Building_No__c;
+        wrapper.officeNumber = gatePassInfo[0].Office_No__c;
+        wrapper.companyName = gatePassInfo[0].Account__r.Name;
+        wrapper.validUntil = gatePassInfo[0].Expiry_Date__c;
+      }
+
+      if (!gatePassInfo.isEmpty() && !(Date.today() >= gatePassInfo[0].Issued_Date__c && Date.today() <= gatePassInfo[0].Expiry_Date__c)){
+        wrapper.isSuccess = true;
+        wrapper.status = EXPIRED_PASS;
+        wrapper.passId = gatePassInfo[0].Pass_Id__c;
+        wrapper.visitorName = gatePassInfo[0].Requestor_Name__c;
+        wrapper.buildingNumber = gatePassInfo[0].Building_No__c;
+        wrapper.officeNumber = gatePassInfo[0].Office_No__c;
+        wrapper.companyName = gatePassInfo[0].Account__r.Name;
+        wrapper.validUntil = gatePassInfo[0].Expiry_Date__c;
+      }
+
+    } catch (Exception e){
+      wrapper.isSuccess = false;
+      wrapper.status = e.getMessage();
+    }
+    return wrapper;
+  }
+
+  global class ResponseWrapper{
+    global Boolean isSuccess;
+    global String status;
+    global String passId;
+    global String visitorName;
+    global String buildingNumber;
+    global String officeNumber;
+    global String companyName;
+    global Date validUntil;
+
+  }
+}
