@@ -1,0 +1,67 @@
+/**
+ * @author            : Saleem
+ * @modifiedon        : March-04-2021
+ * @Description       : expose the rest service for DHA Application
+**/
+@RestResource(urlMapping='/DHAApplicationStatusUpdate/*')
+global class DHA_ApplicationStatusUpdate {
+    global static final String NO_RECORDS_FOUND = 'DHA Application number not found';
+    global static final String LOOKUP_CODE_NOT_FOUND = 'Look up code not available';
+    global static final String MULTIPLE_RECORDS_FOUND = 'Multiple records found';
+    global static final String SERVICE_RECORD_TYPE = 'DHA';
+    global static final String SERVICE_TYPE = 'Application Statuses';
+    global static final String SUCCESS_MESSAGE = 'Status updated successfully.';
+    global static final String STATUS_CODE_NOT_FOUND = 'Status code not found.';
+    
+    /**
+    * @author            : Saleem
+    * @modifiedon        : March-04-2021
+    * @Description       : expose the rest service to update DHA status based on DHA Application Number
+    **/
+    @HttpPost
+    global static ResponseWrapper updatestatus(String applicationNumber, String status) {
+        ResponseWrapper wrapper = new ResponseWrapper();
+        List<Request__c> requestList = new List<Request__c>();
+        requestList = [SELECT Id, DHA_Application_Number__c, DHA_Application_Status__c FROM Request__c WHERE DHA_Application_Number__c =: applicationNumber];
+        if (requestList.isEmpty()) {
+            wrapper.isSuccess = false;
+            wrapper.message = NO_RECORDS_FOUND;
+            return wrapper;
+        }
+        if (requestList.size() > 1) {
+            wrapper.isSuccess = false;
+            wrapper.message = MULTIPLE_RECORDS_FOUND;
+            return wrapper;
+        }
+        if(!requestList.isEmpty()) {
+            Map<String,Map<String,Codes__c>> codeMap = CodesService.getCodesBasedByTypeAndCode(SERVICE_RECORD_TYPE, new List<String>{SERVICE_TYPE});
+            if (codeMap.isEmpty()) {
+                wrapper.isSuccess = false;
+                wrapper.message = LOOKUP_CODE_NOT_FOUND;
+                return wrapper;
+            }
+            if (!codeMap.containsKey(SERVICE_TYPE) || !codeMap.get(SERVICE_TYPE).containsKey(status)) {
+                wrapper.isSuccess = false;
+                wrapper.message = STATUS_CODE_NOT_FOUND;
+                return wrapper;
+            }
+            Request__c request = requestList[0];
+            request.DHA_Application_Status__c = codeMap.get(SERVICE_TYPE).get(status).Name__c;
+
+            try {
+                update request;
+                wrapper.isSuccess = true;
+                wrapper.message = SUCCESS_MESSAGE;
+            } 
+            catch(Exception e){
+                wrapper.isSuccess = false;
+                wrapper.message = e.getMessage();
+            }
+        }
+        return wrapper;
+    }   
+    global class ResponseWrapper {
+        global Boolean isSuccess;
+        global String message;
+    }
+}
